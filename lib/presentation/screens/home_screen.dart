@@ -48,7 +48,6 @@ class _HomeView extends StatelessWidget {
               ? Image.network(notification.imageUrl!)
               : null,
           onTap: () {
-            print(notification.messageId);
             context.push("/push-details/${notification.messageId}");
           },
         );

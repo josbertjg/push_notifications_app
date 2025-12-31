@@ -20,8 +20,21 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
 class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
   FirebaseMessaging messaging = FirebaseMessaging.instance;
+  int pushNumberId = 0;
 
-  NotificationsBloc() : super(const NotificationsState()) {
+  final Future<void> Function()? requestLocalNotificationPermissions;
+  final void Function({
+    required int id,
+    String? title,
+    String? body,
+    String? data,
+  })?
+  showLocalNotification;
+
+  NotificationsBloc({
+    this.requestLocalNotificationPermissions,
+    this.showLocalNotification,
+  }) : super(const NotificationsState()) {
     on<NotificationStatusChanged>(_notificationStatusChanged);
     on<NotificationReceived>(_onPushMessageReceived);
     // Verificar estado de las notificaciones
@@ -55,25 +68,6 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
     print(token);
   }
 
-  void handleRemoteMessage(RemoteMessage message) {
-    if (message.notification == null) return;
-
-    final notification = PushMessage(
-      messageId:
-          message.messageId?.replaceAll(":", "").replaceAll("%", "") ?? "",
-      title: message.notification!.title ?? "",
-      body: message.notification!.body ?? "",
-      sentDate: message.sentTime ?? DateTime.now(),
-      data: message.data,
-      imageUrl: Platform.isAndroid
-          ? message.notification!.android?.imageUrl
-          : message.notification!.apple?.imageUrl,
-    );
-
-    add(NotificationReceived(notification));
-    // appRouter.push("/push-details/${notification.messageId}");
-  }
-
   void _onForegroundMessage() {
     FirebaseMessaging.onMessage.listen(handleRemoteMessage);
   }
@@ -97,7 +91,39 @@ class NotificationsBloc extends Bloc<NotificationsEvent, NotificationsState> {
       sound: true,
     );
 
+    // Solicitar permiso a las local notifcation
+    if (requestLocalNotificationPermissions != null) {
+      await requestLocalNotificationPermissions!();
+    }
+    // await LocalNotifications.requestPermissionLocalNotifications();
+
     add(NotificationStatusChanged(settings.authorizationStatus));
+  }
+
+  void handleRemoteMessage(RemoteMessage message) {
+    if (message.notification == null) return;
+
+    final notification = PushMessage(
+      messageId:
+          message.messageId?.replaceAll(":", "").replaceAll("%", "") ?? "",
+      title: message.notification!.title ?? "",
+      body: message.notification!.body ?? "",
+      sentDate: message.sentTime ?? DateTime.now(),
+      data: message.data,
+      imageUrl: Platform.isAndroid
+          ? message.notification!.android?.imageUrl
+          : message.notification!.apple?.imageUrl,
+    );
+
+    if (showLocalNotification != null) {
+      showLocalNotification!(
+        id: ++pushNumberId,
+        body: notification.body,
+        data: notification.messageId,
+        title: notification.title,
+      );
+    }
+    add(NotificationReceived(notification));
   }
 
   PushMessage? getMessageById(String pushMessageId) {
